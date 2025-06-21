@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relatório Interno - DICS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chosen Palette: Slate Gray with Blue Accent -->
+    <!-- Application Structure Plan: A two-column layout is maintained for optimal user experience on larger screens. The left column (main content) hosts the data entry form, organized into logical cards (Informações Gerais, Equipe, Atividades, Detalhes). This segmentation enhances usability by breaking down the input process. The right column functions as a dynamic dashboard, offering real-time summary and visualization of the entered data, providing immediate feedback. The "Atividades" section is now a dynamic module, allowing users to add or remove multiple activity blocks. Each block features its own independent, nested conditional fields (universal 'Situação' and 'Medidas Adotadas', plus specific activity details), enabling comprehensive and flexible reporting for varied operational operational scenarios within a single report. This structure combines modularity with detailed input requirements, supporting complex reporting needs. -->
+    <!-- Visualization & Content Choices: 
+        - General Info (Data, Horário, Tipo de Serviço, Turno): Report Info -> Goal: Establish overall report context -> Viz/Presentation: Standard form inputs in a dedicated card -> Interaction: Updates live text summaries on the dashboard -> Justification: Provides clear, immediate confirmation of fundamental report parameters.
+        - Agentes: Report Info -> Goal: Identify involved personnel -> Viz/Presentation: A static 4-column grid of checkboxes for agents -> Interaction: Populates a dynamic list on the dashboard -> Justification: Offers a user-friendly selection for multiple agents in a clearly structured layout and provides instant visual feedback of the selected team members.
+        - Atividades (Dynamic & Nested with Universal Fields): Report Info -> Goal: Log multiple, diverse operational events with universal and specific, branching details -> Viz/Presentation: Dynamically added activity cards, each containing a primary activity type dropdown, universal 'Situação' and 'Medidas Adotadas' fields, and conditionally displayed specific activity detail fields. 'Situação' has a mandatory 'Justificativa' for 'Outros'. 'Medidas Adotadas' are multi-selectable checkboxes with nested conditional fields (e.g., mandatory times for 'Controle de Fluxo', mandatory description for 'Outras Medidas') -> Interaction: Add/remove buttons for activity blocks; selection of primary activity type, situation, and measures triggers conditional display of relevant sub-fields, ensuring data integrity through required fields -> Justification: This design robustly handles the complexity of reporting various activities, allowing for granular detail on both the nature of the issue and the actions taken, while maintaining form clarity through modular, interactive elements.
+        - Gráfico de Tipos de Atividade: Report Data (aggregate of all added activities) -> Goal: Summarize the distribution of reported activity types -> Viz/Presentation: Chart.js Donut Chart -> Interaction: Dynamically updates as activities are added, removed, or changed -> Justification: Offers a quick, high-level analytical overview of the operational focus within the report, transforming raw data into an understandable visual insight. -> Library/Method: Chart.js (Canvas).
+        - CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+        input[type="checkbox"]:checked + label {
+            background-color: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8">
+        
+        <header class="text-left mb-10">
+            <div class="flex items-center gap-4">
+                 <svg class="h-12 w-12 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <div>
+                     <p class="text-slate-500">PREFEITURA DE PORTO VELHO</p>
+                     <p class="text-slate-500">SECRETARIA MUNICIPAL DE TRÂNSITO MOBILIDADE E TRANSPORTE - SEMTRAN</p>
+                     <h1 class="text-3xl font-bold text-slate-800">Relatório Interno - DICS</h1>
+                </div>
+            </div>
+        </header>
+
+        <main class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+
+            <div class="lg:col-span-3 flex flex-col gap-6">
+                <div class="bg-white p-6 rounded-xl shadow-sm">
+                    <h2 class="text-xl font-semibold mb-4 border-b pb-2">1. Informações Gerais</h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label for="dataRelatorio" class="block text-sm font-medium text-slate-600 mb-1">Data</label>
+                            <input type="date" id="dataRelatorio" class="w-full p-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label for="horaInicial" class="block text-sm font-medium text-slate-600 mb-1">Horário Inicial / Final</label>
+                            <div class="flex items-center gap-2">
+                                <input type="time" id="horaInicial" value="06:00" class="w-full p-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500">
+                                <span class="text-slate-400">-</span>
+                                <input type="time" id="horaFinal" value="21:00" class="w-full p-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500">
+                            </div>
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-sm font-medium text-slate-600 mb-2">Tipo de Serviço</label>
+                            <div class="flex gap-4">
+                                <input type="checkbox" id="tipoServicoOrdinario" name="tipoServico" value="Ordinário" class="hidden">
+                                <label for="tipoServicoOrdinario" class="cursor-pointer border border-slate-300 rounded-md px-4 py-2 text-center transition-colors duration-200">Ordinário</label>
+                                <input type="checkbox" id="tipoServicoExtraordinario" name="tipoServico" value="Extraordinário" class="hidden">
+                                <label for="tipoServicoExtraordinario" class="cursor-pointer border border-slate-300 rounded-md px-4 py-2 text-center transition-colors duration-200">Extraordinário</label>
+                            </div>
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-sm font-medium text-slate-600 mb-2">Turno</label>
+                            <div class="flex flex-wrap gap-4">
+                                <input type="checkbox" id="turnoPlantao" name="turno" value="Plantão" class="hidden">
+                                <label for="turnoPlantao" class="cursor-pointer border border-slate-300 rounded-md px-4 py-2 text-center transition-colors duration-200">Plantão</label>
+                                <input type="checkbox" id="turnoManha" name="turno" value="Manhã" class="hidden">
+                                <label for="turnoManha" class="cursor-pointer border border-slate-300 rounded-md px-4 py-2 text-center transition-colors duration-200">Manhã</label>
+                                <input type="checkbox" id="turnoTarde" name="turno" value="Tarde" class="hidden">
+                                <label for="turnoTarde" class="cursor-pointer border border-slate-300 rounded-md px-4 py-2 text-center transition-colors duration-200">Tarde</label>
+                                <input type="checkbox" id="turnoNoite" name="turno" value="Noite" class="hidden">
+                                <label for="turnoNoite" class="cursor-pointer border border-slate-300 rounded-md px-4 py-2 text-center transition-colors duration-200">Noite</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-sm">
+                    <h2 class="text-xl font-semibold mb-4 border-b pb-2">2. Equipe</h2>
+                    <div id="agentesContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        <div class="flex flex-col gap-2">
+                            <div>
+                                <input type="checkbox" id="agente_AGHILDIMAR" name="agente" value="AG HILDIMAR" class="hidden">
+                                <label for="agente_AGHILDIMAR" class="block text-sm cursor-pointer border border-slate-300 rounded-md p-2 text-center transition-colors duration-200">AG HILDIMAR</label>
+                            </div>
+                            <div>
+                                <input type="checkbox" id="agente_AGCLAUDIA" name="agente" value="AG CLAUDIA" class="hidden">
+                                <label for="agente_AGCLAUDIA" class="block text-sm cursor-pointer border border-slate-300 rounded-md p-2 text-center transition-colors duration-200">AG CLAUDIA</label>
+                            </div>
+                            <div>
+                                <input type="checkbox" id="agente_AGBRAZ" name="agente" value="AG BRAZ" class="hidden">
+                                <label for="agente_AGBRAZ" class="block text-sm cursor-pointer border border-slate-300 rounded-md p-2 text-center transition-colors duration-200">AG BRAZ</label>
+                            </div>
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <div>
+                                <input type="checkbox" id="agente_AGCRISTINA" name="agente" value="AG CRISTINA" class="hidden">
+                                <label for="agente_AGCRISTINA" class="block text-sm cursor-pointer border border-slate-300 rounded-md p-2 text-center transition-colors duration-200">AG CRISTINA</label>
+                            </div>
+                            <div>
+                                <input type="checkbox" id="agente_AGHORTIZ" name="agente" value="AG HORTIZ" class="hidden">
+                                <label for="agente_AGHORTIZ" class="block text-sm cursor-pointer border border-slate-300 rounded-md p-2 text-center transition-colors duration-200">AG HORTIZ</label>
+                            </div>
+                            <div>
+                                <input type="checkbox" id="agente_AGROCHA" name="agente" value="AG ROCHA" class="hidden">
+                                <label for="agente_AGROCHA" class="block text-sm cursor-pointer border border-slate-300 rounded-md p-2 text-center transition-colors duration-200">AG ROCHA</label>
+                            </div>
+                            <div>
+                                <input type="checkbox" id="agente_AGMARQUES" name="agente" value="AG MARQUES" class="hidden">
+                                <label for="agente_AGMARQUES" class="block text-sm cursor-pointer border border-slate-300 rounded-md p-2 text-center transition-colors duration-200">AG MARQUES</label>
+                            </div>
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <div>
+                                <input type="checkbox" id="agente_AGDAHORA" name="agente" value="AG DA HORA" class="hidden">
+                                <label for="agente_AGDAHORA" class="block text-sm cursor-pointer border border-slate-300 rounded-md p-2 text-center transition-colors duration-200">AG DA HORA</label>
+                            </div>
+                            <div>
+                                <input type="checkbox" id="agente_AGROSEMEIRY" name="agente" value="AG ROSEMEIRY" class="hidden">
+                                <label for="agente_AGROSEMEIRY" class="block text-sm cursor-pointer border border-slate-300 rounded-md p-2 text-center transition-colors duration-200">AG ROSEMEIRY</label>
+                            </div>
+                            <div>
+                                <input type="checkbox" id="agente_AGJANSEN" name="agente" value="AG JANSEN" class="hidden">
+                                <label for="agente_AGJANSEN" class="block text-sm cursor-pointer border border-slate-300 rounded-md p-2 text-center transition-colors duration-200">AG JANSEN</label>
+                            </div>
+                            <div>
+                                <input type="checkbox" id="agente_AGDIAS" name="agente" value="AG DIAS" class="hidden">
+                                <label for="agente_AGDIAS" class="block text-sm cursor-pointer border border-slate-300 rounded-md p-2 text-center transition-colors duration-200">AG DIAS</label>
+                            </div>
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <div>
+                                <input type="checkbox" id="agente_AGSANTOS" name="agente" value="AG SANTOS" class="hidden">
+                                <label for="agente_AGSANTOS" class="block text-sm cursor-pointer border border-slate-300 rounded-md p-2 text-center transition-colors duration-200">AG SANTOS</label>
+                            </div>
+                            <div>
+                                <input type="checkbox" id="agente_AGJAQUELINE" name="agente" value="AG JAQUELINE" class="hidden">
+                                <label for="agente_AGJAQUELINE" class="block text-sm cursor-pointer border border-slate-300 rounded-md p-2 text-center transition-colors duration-200">AG JAQUELINE</label>
+                            </div>
+                            <div>
+                                <input type="checkbox" id="agente_AGPASSOS" name="agente" value="AG PASSOS" class="hidden">
+                                <label for="agente_AGPASSOS" class="block text-sm cursor-pointer border border-slate-300 rounded-md p-2 text-center transition-colors duration-200">AG PASSOS</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-sm">
+                    <div class="flex justify-between items-center mb-4 border-b pb-2">
+                        <h2 class="text-xl font-semibold">3. Descrição das Atividades</h2>
+                        <button id="addActivityBtn" class="bg-blue-500 text-white font-semibold px-4 py-2 rounded-md hover:bg-blue-600 transition-colors duration-200 flex items-center gap-2">
+                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                            Adicionar Atividade
+                        </button>
+                    </div>
+                    <div id="atividadesList" class="flex flex-col gap-4">
+                        </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-sm">
+                     <h2 class="text-xl font-semibold mb-4 border-b pb-2">4. Detalhes Adicionais</h2>
+                     <div class="grid grid-cols-1 gap-4">
+                         <div>
+                            <label for="equipamentos" class="block text-sm font-medium text-slate-600 mb-1">Equipamentos / Materiais</label>
+                            <textarea id="equipamentos" rows="3" class="w-full p-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500" placeholder="Liste os materiais utilizados..."></textarea>
+                         </div>
+                         <div>
+                            <label for="observacoes" class="block text-sm font-medium text-slate-600 mb-1">Observações / Anotações</label>
+                            <textarea id="observacoes" rows="3" class="w-full p-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500" placeholder="Descreva qualquer observação relevante..."></textarea>
+                         </div>
+                     </div>
+                </div>
+                
+                 <div class="mt-4">
+                    <button class="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-700 transition-all duration-200 text-lg">
+                        Gerar Relatório
+                    </button>
+                </div>
+
+            </div>
+
+            <aside class="lg:col-span-2">
+                <div class="sticky top-8 bg-white p-6 rounded-xl shadow-sm">
+                    <h2 class="text-xl font-semibold mb-4 text-center">Resumo do Relatório</h2>
+                    <div id="summaryContent" class="text-slate-600 space-y-4">
+                       <p class="text-center text-slate-400">Preencha os campos para ver o resumo.</p>
+                    </div>
+
+                    <div class="mt-6">
+                        <h3 class="text-lg font-semibold mb-2 text-center">Distribuição de Atividades</h3>
+                         <div class="chart-container">
+                            <canvas id="activitiesChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="mt-8 pt-4 border-t border-slate-200">
+                        <h3 class="text-lg font-semibold mb-2 text-center">Ferramentas Inteligentes ✨</h3>
+                        <button id="generateSummaryBtn" class="w-full bg-indigo-500 text-white font-bold py-2 px-4 rounded-md hover:bg-indigo-600 transition-all duration-200 flex items-center justify-center gap-2">
+                            Gerar Resumo Inteligente ✨
+                        </button>
+                        <div id="llmSummaryOutput" class="mt-4 p-4 bg-slate-100 rounded-md text-sm text-slate-700 hidden">
+                            <p class="text-center text-slate-500">Resumo gerado por IA:</p>
+                            <div id="llmSummaryText" class="mt-2 text-center italic"></div>
+                             <div id="llmLoadingIndicator" class="hidden text-center text-blue-500 mt-2">
+                                <p>Gerando resumo...</p>
+                                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mt-2"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const state = {
+                data: '',
+                horaInicial: '06:00', // Default value
+                horaFinal: '21:00',   // Default value
+                servicos: [],
+                turnos: [],
+                agentes: [],
+                atividades: [], // Now an array to hold multiple activities
+                equipamentos: '',
+                observacoes: ''
+            };
+
+            // Set initial values for time inputs in the form
+            document.getElementById('horaInicial').value = state.horaInicial;
+            document.getElementById('horaFinal').value = state.horaFinal;
+
+            // Set current date as default for dataRelatorio
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+            const day = String(today.getDate()).padStart(2, '0');
+            const formattedDate = `${year}-${month}-${day}`;
+            document.getElementById('dataRelatorio').value = formattedDate;
+            state.data = formattedDate; // Also update state with the default date
+
+
+            let activityChart;
+            let activityCounter = 0; // To ensure unique IDs for dynamic elements
+
+            const allAgentes = [
+                "AG HILDIMAR", "AG CLAUDIA", "AG BRAZ", 
+                "AG CRISTINA", "AG HORTIZ", "AG ROCHA", "AG MARQUES", 
+                "AG DA HORA", "AG ROSEMEIRY", "AG JANSEN", "AG DIAS", 
+                "AG SANTOS", "AG JAQUELINE", "AG PASSOS"
+            ];
+            
+            const initChart = () => {
+                const ctx = document.getElementById('activitiesChart').getContext('2d');
+                activityChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Nenhuma atividade registrada'],
+                        datasets: [{
+                            label: 'Atividades',
+                            data: [1],
+                            backgroundColor: ['#e2e8f0'],
+                            borderColor: ['#ffffff'],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        if (context.parsed !== null) {
+                                            label += context.parsed;
+                                        }
+                                        return label;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            };
+
+            const updateDashboard = () => {
+                const summaryContent = document.getElementById('summaryContent');
+                let activitiesSummary = '';
+                if (state.atividades.length > 0) {
+                    activitiesSummary = `
+                        <p class="font-semibold mt-4">Atividades Registradas (${state.atividades.length}):</p>
+                        <ul class="list-disc list-inside text-sm pl-2 space-y-2">
+                    ` + state.atividades.map((activity, index) => {
+                        let activityText = `<li><strong>Atividade ${index + 1}: ${activity.type || 'Tipo não selecionado'}</strong>`;
+                        if (activity.details.endereco) {
+                            activityText += `<p class="ml-4">Endereço: ${activity.details.endereco}</p>`;
+                        }
+                        activityText += `<ul class="list-circle list-inside ml-4">`;
+                        activityText += `<li>Situação: ${activity.details.situacao || 'Não definida'}`;
+                        if (activity.details.situacao === 'OUTROS' && activity.details.justificativaOutros) {
+                            activityText += `: ${activity.details.justificativaOutros}`;
+                        }
+                        activityText += `</li>`;
+
+                        // Ensure medidasAdotadas is an array before attempting forEach
+                        const medidasAdotadasArray = Array.isArray(activity.details.medidasAdotadas) ? activity.details.medidasAdotadas : [];
+
+                        if (medidasAdotadasArray.length > 0) {
+                            activityText += `<li>Medidas Adotadas:</li><ul class="list-square list-inside ml-4">`;
+                            medidasAdotadasArray.forEach(medida => {
+                                activityText += `<li>${medida}`;
+                                if (medida === 'REALIZADO CONTROLE DE FLUXO' && activity.details.inicioControleFluxoMedida && activity.details.fimControleFluxoMedida) {
+                                    activityText += ` (${activity.details.inicioControleFluxoMedida} - ${activity.details.fimControleFluxoMedida})`;
+                                }
+                                if (medida === 'OUTRAS MEDIDAS' && activity.details.justificativaOutrasMedidas) {
+                                    activityText += `: ${activity.details.justificativaOutrasMedidas}`;
+                                }
+                                activityText += `</li>`;
+                            });
+                            activityText += `</ul>`;
+                        } else {
+                            activityText += `<li>Medidas Adotadas: Nenhuma</li>`;
+                        }
+                        activityText += `</ul>`; // Close inner ul for situation/medidas
+
+                        if (activity.type === 'SEMÁFORO PISCANTE' && activity.details.cruzamentoSemaforoPiscante) {
+                            activityText += `<p class="ml-4"><strong>Detalhes Semáforo Piscante:</strong> Cruzamento: ${activity.details.cruzamentoSemaforoPiscante}</p>`;
+                        } else if (activity.type === 'SEMAFORO APAGADO' && activity.details.descricaoSemaforoApagado) {
+                            activityText += `<p class="ml-4"><strong>Detalhes Semáforo Apagado:</strong> Descrição: ${activity.details.descricaoSemaforoApagado}</p>`;
+                        } else if (activity.type === 'COLETA DE DADOS PARA ENGENHARIA (CONTAGENS, ESTUDOS)' && activity.details.descricaoColetaDados) {
+                             activityText += `<p class="ml-4"><strong>Detalhes Coleta de Dados:</strong> Descrição: ${activity.details.descricaoColetaDados}</p>`;
+                        } else if (activity.type === 'ATENDIMENTO DE OCORRÊNCIAS' && activity.details.descricaoAtendimentoOcorrencias) {
+                             activityText += `<p class="ml-4"><strong>Detalhes Atendimento de Ocorrências:</strong> Descrição: ${activity.details.descricaoAtendimentoOcorrencias}</p>`;
+                        } else if (activity.type === 'OUTROS TIPOS DE ATIVIDADE' && activity.details.justificativaOutrosAtividade) {
+                             activityText += `<p class="ml-4"><strong>Detalhes Outros Tipos de Atividade:</strong> Justificativa: ${activity.details.justificativaOutrosAtividade}</p>`;
+                        } else if (activity.type === 'OUTRA ATIVIDADE / COMPLEMENTAR' && activity.details.complementoAtividade) {
+                            activityText += `<p class="ml-4"><strong>Detalhes Outra Atividade:</strong> Complemento: ${activity.details.complementoAtividade}</p>`;
+                        } else if (activity.type === 'SEM ALTERAÇÕES NO PLANTÃO') {
+                            activityText += `<p class="ml-4"><strong>Detalhes:</strong> Nenhuma alteração no plantão.</p>`;
+                        }
+                        activityText += `</li>`; // Close main activity li
+                        return activityText;
+                    }).join('') + `</ul>`;
+                } else {
+                    activitiesSummary = '<p>Nenhuma atividade registrada.</p>';
+                }
+
+                if (!state.data && state.servicos.length === 0 && state.turnos.length === 0 && state.agentes.length === 0 && state.atividades.length === 0 && !state.equipamentos && !state.observacoes) {
+                    summaryContent.innerHTML = '<p class="text-center text-slate-400">Preencha os campos para ver o resumo.</p>';
+                } else {
+                     summaryContent.innerHTML = `
+                        <div class="border-b pb-2">
+                           <p><strong>Data:</strong> ${state.data ? new Date(state.data + 'T00:00:00').toLocaleDateString('pt-BR') : 'Não definido'}</p>
+                           <p><strong>Horário:</strong> ${state.horaInicial || '--:--'} às ${state.horaFinal || '--:--'}</p>
+                        </div>
+                        <div class="border-b pb-2">
+                           <p><strong>Tipo de Serviço:</strong> ${state.servicos.length > 0 ? state.servicos.join(', ') : 'Não definido'}</p>
+                           <p><strong>Turno(s):</strong> ${state.turnos.length > 0 ? state.turnos.join(', ') : 'Não definido'}</p>
+                        </div>
+                        <div class="border-b pb-2">
+                           <p class="font-semibold">Agentes Envolvidos (${state.agentes.length}):</p>
+                           <ul class="list-disc list-inside text-sm pl-2 max-h-32 overflow-y-auto">
+                              ${state.agentes.length > 0 ? state.agentes.map(a => `<li>${a}</li>`).join('') : '<li>Nenhum agente selecionado</li>'}
+                           </ul>
+                        </div>
+                        <div class="border-b pb-2">
+                            ${activitiesSummary}
+                        </div>
+                        <div>
+                           <p><strong>Equipamentos/Materiais:</strong> ${state.equipamentos || 'Nenhum'}</p>
+                           <p><strong>Observações/Anotações:</strong> ${state.observacoes || 'Nenhuma'}</p>
+                        </div>
+                    `;
+                }
+                updateChart();
+            };
+            
+            const updateChart = () => {
+                const activityCounts = state.atividades.reduce((acc, activity) => {
+                    const type = activity.type || 'Não especificado';
+                    acc[type] = (acc[type] || 0) + 1;
+                    return acc;
+                }, {});
+
+                const labels = Object.keys(activityCounts);
+                const data = Object.values(activityCounts);
+                
+                const backgroundColors = [
+                    '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#d946ef'
+                ];
+
+                if (labels.length === 0) {
+                    activityChart.data.labels = ['Nenhuma atividade registrada'];
+                    activityChart.data.datasets[0].data = [1];
+                    activityChart.data.datasets[0].backgroundColor = ['#e2e8f0'];
+                } else {
+                    activityChart.data.labels = labels;
+                    activityChart.data.datasets[0].data = data;
+                    activityChart.data.datasets[0].backgroundColor = labels.map((_, i) => backgroundColors[i % backgroundColors.length]);
+                }
+                activityChart.update();
+            };
+
+            const atividadesList = document.getElementById('atividadesList');
+
+            const addActivityBlock = () => {
+                activityCounter++;
+                const currentActivityId = `activity_${activityCounter}`;
+                const newActivityState = {
+                    id: currentActivityId,
+                    type: '',
+                    details: {
+                        endereco: '', // New field for address
+                        situacao: '',
+                        justificativaOutros: '',
+                        medidasAdotadas: [],
+                        inicioControleFluxoMedida: '',
+                        fimControleFluxoMedida: '',
+                        justificativaOutrasMedidas: ''
+                    }
+                };
+                state.atividades.push(newActivityState);
+
+                const activityDiv = document.createElement('div');
+                activityDiv.id = currentActivityId;
+                activityDiv.className = 'bg-slate-50 border border-slate-200 p-4 rounded-lg';
+                activityDiv.innerHTML = `
+                    <div class="flex justify-between items-center mb-4">
+                        <label for="mainActivityType_${currentActivityId}" class="block text-sm font-medium text-slate-600 mb-1">Selecione o tipo de Atividade:</label>
+                        <select id="mainActivityType_${currentActivityId}" data-activity-id="${currentActivityId}" class="main-activity-type-select w-full p-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500">
+                            <option value="">-- Selecione --</option>
+                            <option value="SEMÁFORO PISCANTE">3.1 SEMÁFORO PISCANTE</option>
+                            <option value="SEMAFORO APAGADO">3.2 SEMÁFORO APAGADO</option>
+                            <option value="OUTRA ATIVIDADE / COMPLEMENTAR">3.4 OUTRA ATIVIDADE / COMPLEMENTAR</option>
+                            <option value="COLETA DE DADOS PARA ENGENHARIA (CONTAGENS, ESTUDOS)">3.5 COLETA DE DADOS PARA ENGENHARIA (CONTAGENS, ESTUDOS)</option>
+                            <option value="ATENDIMENTO DE OCORRÊNCIAS">3.6 ATENDIMENTO DE OCORRÊNCIAS</option>
+                            <option value="OUTROS TIPOS DE ATIVIDADE">3.7 OUTROS</option>
+                            <option value="SEM ALTERAÇÕES NO PLANTÃO">3.8 SEM ALTERAÇÕES NO PLANTÃO</option>
+                        </select>
+                        <button type="button" data-activity-id="${currentActivityId}" class="removeActivityBtn ml-4 text-red-500 hover:text-red-700 p-2 rounded-full">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <label for="endereco_${currentActivityId}" class="block text-sm font-medium text-slate-600 mb-1">Endereço (Obrigatório):</label>
+                        <textarea id="endereco_${currentActivityId}" data-activity-id="${currentActivityId}" name="endereco" rows="2" class="w-full p-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500" placeholder="Insira o endereço da atividade..." required></textarea>
+                    </div>
+
+                    <div class="mt-4">
+                        <label for="situacao_${currentActivityId}" class="block text-sm font-medium text-slate-600 mb-1">Situação:</label>
+                        <select id="situacao_${currentActivityId}" data-activity-id="${currentActivityId}" name="situacao" class="situacao-select w-full p-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500">
+                            <option value="">Selecione a Situação</option>
+                            <option value="FALTA DE ENERGIA">FALTA DE ENERGIA</option>
+                            <option value="VANDALIZADO">VANDALIZADO</option>
+                            <option value="DANIFICADO (POR ACIDENTE)">DANIFICADO (POR ACIDENTE)</option>
+                            <option value="PANE OU DEFEITO">PANE OU DEFEITO</option>
+                            <option value="OUTROS">OUTROS</option>
+                        </select>
+                        <div id="outrosJustificativaDiv_${currentActivityId}" class="hidden mt-2">
+                            <label for="justificativaOutros_${currentActivityId}" class="block text-sm font-medium text-slate-600 mb-1">Justificativa (Obrigatório):</label>
+                            <textarea id="justificativaOutros_${currentActivityId}" data-activity-id="${currentActivityId}" name="justificativaOutros" rows="2" class="w-full p-2 border border-slate-300 rounded-md" placeholder="Descreva a situação..."></textarea>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium text-slate-600 mb-2">Medidas Adotadas:</label>
+                        <div class="flex flex-col gap-2">
+                            <div>
+                                <input type="checkbox" id="medida_resetRemoto_${currentActivityId}" data-activity-id="${currentActivityId}" name="medidasAdotadas" value="EM CORES APÓS RESET REMOTO" class="hidden">
+                                <label for="medida_resetRemoto_${currentActivityId}" class="cursor-pointer border border-slate-300 rounded-md px-4 py-2 text-center transition-colors duration-200 inline-block">EM CORES APÓS RESET REMOTO</label>
+                            </div>
+                            <div>
+                                <input type="checkbox" id="medida_resetInloco_${currentActivityId}" data-activity-id="${currentActivityId}" name="medidasAdotadas" value="EM CORES APÓS RESET IN LOCO (CHAVE DR)" class="hidden">
+                                <label for="medida_resetInloco_${currentActivityId}" class="cursor-pointer border border-slate-300 rounded-md px-4 py-2 text-center transition-colors duration-200 inline-block">EM CORES APÓS RESET IN LOCO (CHAVE DR)</label>
+                            </div>
+                            <div>
+                                <input type="checkbox" id="medida_resetNaoReestabeleceu_${currentActivityId}" data-activity-id="${currentActivityId}" name="medidasAdotadas" value="RESET NÃO REESTABELECEU/ EMPRESA DE MANUTENÇÃO ACIONADA" class="hidden">
+                                <label for="medida_resetNaoReestabeleceu_${currentActivityId}" class="cursor-pointer border border-slate-300 rounded-md px-4 py-2 text-center transition-colors duration-200 inline-block">RESET NÃO REESTABELECEU/ EMPRESA DE MANUTENÇÃO ACIONADA</label>
+                            </div>
+                            
+                            <div>
+                                <input type="checkbox" id="medida_controleFluxo_${currentActivityId}" data-activity-id="${currentActivityId}" name="medidasAdotadas" value="REALIZADO CONTROLE DE FLUXO" class="hidden">
+                                <label for="medida_controleFluxo_${currentActivityId}" class="cursor-pointer border border-slate-300 rounded-md px-4 py-2 text-center transition-colors duration-200 inline-block">REALIZADO CONTROLE DE FLUXO</label>
+                                <div id="controleFluxoTimesDetails_${currentActivityId}" class="hidden mt-2 space-y-2">
+                                    <label class="block text-sm font-medium text-slate-600">Horário de Controle:</label>
+                                    <div class="flex items-center gap-2">
+                                        <input type="time" id="inicioControleFluxoMedida_${currentActivityId}" data-activity-id="${currentActivityId}" name="inicioControleFluxoMedida" class="w-full p-2 border border-slate-300 rounded-md">
+                                        <span class="text-slate-400">-</span>
+                                        <input type="time" id="fimControleFluxoMedida_${currentActivityId}" data-activity-id="${currentActivityId}" name="fimControleFluxoMedida" class="w-full p-2 border border-slate-300 rounded-md">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <input type="checkbox" id="medida_sinalizadoCones_${currentActivityId}" data-activity-id="${currentActivityId}" name="medidasAdotadas" value="SINALIZADO COM CONES" class="hidden">
+                                <label for="medida_sinalizadoCones_${currentActivityId}" class="cursor-pointer border border-slate-300 rounded-md px-4 py-2 text-center transition-colors duration-200 inline-block">SINALIZADO COM CONES</label>
+                            </div>
+
+                            <div>
+                                <input type="checkbox" id="medida_outras_${currentActivityId}" data-activity-id="${currentActivityId}" name="medidasAdotadas" value="OUTRAS MEDIDAS" class="hidden">
+                                <label for="medida_outras_${currentActivityId}" class="cursor-pointer border border-slate-300 rounded-md px-4 py-2 text-center transition-colors duration-200 inline-block">OUTRAS</label>
+                                <div id="outrasMedidasJustificativaDiv_${currentActivityId}" class="hidden mt-2">
+                                    <label for="justificativaOutrasMedidas_${currentActivityId}" class="block text-sm font-medium text-slate-600 mb-1">Descreva (Obrigatório):</label>
+                                    <textarea id="justificativaOutrasMedidas_${currentActivityId}" data-activity-id="${currentActivityId}" name="justificativaOutrasMedidas" rows="2" class="w-full p-2 border border-slate-300 rounded-md" placeholder="Descreva as outras medidas adotadas..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="conditional-activity-details flex flex-col gap-4 mt-4 pt-4 border-t border-slate-200">
+                        <div id="semaforoPiscanteDetails_${currentActivityId}" class="hidden border border-slate-200 p-4 rounded-lg bg-white">
+                            <h3 class="font-semibold text-slate-700 mb-3">Detalhes Específicos do Semáforo Piscante:</h3>
+                            <div class="mb-4">
+                                <label for="cruzamentoSemaforoPiscante_${currentActivityId}" class="block text-sm font-medium text-slate-600 mb-1">Cruzamento:</label>
+                                <input type="text" id="cruzamentoSemaforoPiscante_${currentActivityId}" data-activity-id="${currentActivityId}" name="cruzamentoSemaforoPiscante" class="w-full p-2 border border-slate-300 rounded-md" placeholder="Ex: Av. Sete de Setembro x Rua Tiradentes">
+                            </div>
+                        </div>
+
+                        <div id="semaforoApagadoDetails_${currentActivityId}" class="hidden border border-slate-200 p-4 rounded-lg bg-white">
+                            <h3 class="font-semibold text-slate-700 mb-3">Detalhes Específicos do Semáforo Apagado:</h3>
+                            <textarea id="descricaoSemaforoApagado_${currentActivityId}" data-activity-id="${currentActivityId}" name="descricaoSemaforoApagado" rows="3" class="w-full p-2 border border-slate-300 rounded-md" placeholder="Descreva a situação do semáforo apagado..."></textarea>
+                        </div>
+
+                        <div id="outraAtividadeDetails_${currentActivityId}" class="hidden border border-slate-200 p-4 rounded-lg bg-white">
+                            <h3 class="font-semibold text-slate-700 mb-3">Detalhes Específicos de Outra Atividade / Complementar:</h3>
+                            <textarea id="complementoAtividade_${currentActivityId}" data-activity-id="${currentActivityId}" name="complementoAtividade" rows="3" class="w-full p-2 border border-slate-300 rounded-md" placeholder="Descreva ou complemente a atividade..."></textarea>
+                        </div>
+
+                        <div id="coletaDadosEngenhariaDetails_${currentActivityId}" class="hidden border border-slate-200 p-4 rounded-lg bg-white">
+                            <h3 class="font-semibold text-slate-700 mb-3">Detalhes Específicos de Coleta de Dados para Engenharia:</h3>
+                            <textarea id="descricaoColetaDados_${currentActivityId}" data-activity-id="${currentActivityId}" name="descricaoColetaDados" rows="3" class="w-full p-2 border border-slate-300 rounded-md" placeholder="Descreva os dados coletados e o estudo..."></textarea>
+                        </div>
+
+                        <div id="atendimentoOcorrenciasDetails_${currentActivityId}" class="hidden border border-slate-200 p-4 rounded-lg bg-white">
+                            <h3 class="font-semibold text-slate-700 mb-3">Detalhes Específicos de Atendimento de Ocorrências:</h3>
+                            <textarea id="descricaoAtendimentoOcorrencias_${currentActivityId}" data-activity-id="${currentActivityId}" name="descricaoAtendimentoOcorrencias" rows="3" class="w-full p-2 border border-slate-300 rounded-md" placeholder="Descreva a ocorrência atendida..."></textarea>
+                        </div>
+
+                        <div id="outrosTiposAtividadeDetails_${currentActivityId}" class="hidden border border-slate-200 p-4 rounded-lg bg-white">
+                            <h3 class="font-semibold text-slate-700 mb-3">Detalhes de Outros Tipos de Atividade:</h3>
+                            <textarea id="justificativaOutrosAtividade_${currentActivityId}" data-activity-id="${currentActivityId}" name="justificativaOutrosAtividade" rows="3" class="w-full p-2 border border-slate-300 rounded-md" placeholder="Descreva este outro tipo de atividade (Obrigatório)..."></textarea>
+                        </div>
+                        <div id="semAlteracoesPlantaoDetails_${currentActivityId}" class="hidden border border-slate-200 p-4 rounded-lg bg-white">
+                            <h3 class="font-semibold text-slate-700 mb-3">Detalhes de Sem Alterações no Plantão:</h3>
+                            <p class="text-sm text-slate-600">Nenhuma informação adicional é necessária para este tipo de atividade.</p>
+                        </div>
+                    </div>
+                `;
+                atividadesList.appendChild(activityDiv);
+                updateDashboard();
+            };
+
+            document.getElementById('addActivityBtn').addEventListener('click', addActivityBlock);
+
+            // Event delegation for dynamically added activity blocks
+            atividadesList.addEventListener('change', (e) => {
+                const activityDiv = e.target.closest('.bg-slate-50');
+                if (!activityDiv) return; // Not an activity block element
+
+                const activityId = activityDiv.id; // Correctly get activityId from the parent div
+                const activityState = state.atividades.find(a => a.id === activityId);
+                if (!activityState) return;
+
+                if (e.target.classList.contains('main-activity-type-select')) {
+                    activityState.type = e.target.value;
+                    // Keep universal fields, reset specific details
+                    const currentDetails = activityState.details;
+                    activityState.details = {
+                        endereco: currentDetails.endereco, // Preserve address
+                        situacao: currentDetails.situacao,
+                        justificativaOutros: currentDetails.justificativaOutros,
+                        medidasAdotadas: Array.isArray(currentDetails.medidasAdotadas) ? currentDetails.medidasAdotadas : [], // Ensure it's an array
+                        inicioControleFluxoMedida: currentDetails.inicioControleFluxoMedida,
+                        fimControleFluxoMedida: currentDetails.fimControleFluxoMedida,
+                        justificativaOutrasMedidas: currentDetails.justificativaOutrasMedidas
+                    };
+
+                    const conditionalDetailsDivs = activityDiv.querySelectorAll('.conditional-activity-details > div');
+                    conditionalDetailsDivs.forEach(div => {
+                        div.classList.add('hidden');
+                        div.querySelectorAll('input, select, textarea').forEach(input => {
+                            if (input.type === 'checkbox') input.checked = false;
+                            else if (input.tagName === 'SELECT') input.selectedIndex = 0;
+                            else if (input.name !== 'endereco') input.value = ''; // Don't reset address
+                            input.removeAttribute('required');
+                        });
+                    });
+
+                    if (activityState.type === 'SEMÁFORO PISCANTE') {
+                        activityDiv.querySelector(`#semaforoPiscanteDetails_${activityId}`).classList.remove('hidden');
+                    } else if (activityState.type === 'SEMAFORO APAGADO') {
+                        activityDiv.querySelector(`#semaforoApagadoDetails_${activityId}`).classList.remove('hidden');
+                    } else if (activityState.type === 'OUTRA ATIVIDADE / COMPLEMENTAR') {
+                        activityDiv.querySelector(`#outraAtividadeDetails_${activityId}`).classList.remove('hidden');
+                    } else if (activityState.type === 'COLETA DE DADOS PARA ENGENHARIA (CONTAGENS, ESTUDOS)') {
+                        activityDiv.querySelector(`#coletaDadosEngenhariaDetails_${activityId}`).classList.remove('hidden');
+                    } else if (activityState.type === 'ATENDIMENTO DE OCORRÊNCIAS') {
+                        activityDiv.querySelector(`#atendimentoOcorrenciasDetails_${activityId}`).classList.remove('hidden');
+                    } else if (activityState.type === 'OUTROS TIPOS DE ATIVIDADE') {
+                        activityDiv.querySelector(`#outrosTiposAtividadeDetails_${activityId}`).classList.remove('hidden');
+                        activityDiv.querySelector(`#justificativaOutrosAtividade_${activityId}`).setAttribute('required', 'true');
+                    } else if (activityState.type === 'SEM ALTERAÇÕES NO PLANTÃO') {
+                        activityDiv.querySelector(`#semAlteracoesPlantaoDetails_${activityId}`).classList.remove('hidden');
+                    }
+                } else if (e.target.name === 'situacao') {
+                    activityState.details.situacao = e.target.value;
+                    const outrosJustificativaDiv = activityDiv.querySelector(`#outrosJustificativaDiv_${activityId}`);
+                    const justificativaOutrosInput = activityDiv.querySelector(`#justificativaOutros_${activityId}`);
+
+                    if (e.target.value === 'OUTROS') {
+                        outrosJustificativaDiv.classList.remove('hidden');
+                        justificativaOutrosInput.setAttribute('required', 'true');
+                    } else {
+                        outrosJustificativaDiv.classList.add('hidden');
+                        justificativaOutrosInput.removeAttribute('required');
+                        justificativaOutrosInput.value = '';
+                        activityState.details.justificativaOutros = '';
+                    }
+                } else if (e.target.name === 'medidasAdotadas') {
+                    const checkedMedidas = Array.from(activityDiv.querySelectorAll(`input[name="medidasAdotadas"][data-activity-id="${activityId}"]:checked`)).map(cb => cb.value);
+                    activityState.details.medidasAdotadas = checkedMedidas;
+
+                    const controleFluxoCheckbox = activityDiv.querySelector(`#medida_controleFluxo_${activityId}`);
+                    const controleFluxoTimesDetails = activityDiv.querySelector(`#controleFluxoTimesDetails_${activityId}`);
+                    const inicioInput = activityDiv.querySelector(`#inicioControleFluxoMedida_${activityId}`);
+                    const fimInput = activityDiv.querySelector(`#fimControleFluxoMedida_${activityId}`);
+
+                    const outrasMedidasCheckbox = activityDiv.querySelector(`#medida_outras_${activityId}`);
+                    const outrasMedidasJustificativaDiv = activityDiv.querySelector(`#outrasMedidasJustificativaDiv_${activityId}`);
+                    const justificativaOutrasMedidasInput = activityDiv.querySelector(`#justificativaOutrasMedidas_${activityId}`);
+
+                    if (controleFluxoCheckbox && controleFluxoCheckbox.checked) {
+                        controleFluxoTimesDetails.classList.remove('hidden');
+                        inicioInput.setAttribute('required', 'true');
+                        fimInput.setAttribute('required', 'true');
+                    } else {
+                        controleFluxoTimesDetails.classList.add('hidden');
+                        inicioInput.removeAttribute('required');
+                        fimInput.removeAttribute('required');
+                        inicioInput.value = '';
+                        fimInput.value = '';
+                        activityState.details.inicioControleFluxoMedida = '';
+                        activityState.details.fimControleFluxoMedida = '';
+                    }
+
+                    if (outrasMedidasCheckbox && outrasMedidasCheckbox.checked) {
+                        outrasMedidasJustificativaDiv.classList.remove('hidden');
+                        justificativaOutrasMedidasInput.setAttribute('required', 'true');
+                    } else {
+                        outrasMedidasJustificativaDiv.classList.add('hidden');
+                        justificativaOutrasMedidasInput.removeAttribute('required');
+                        justificativaOutrasMedidasInput.value = '';
+                        activityState.details.justificativaOutrasMedidas = '';
+                    }
+
+                } else {
+                    // Handle other specific inputs within activity details
+                    activityState.details[e.target.name] = e.target.value;
+                }
+                updateDashboard();
+            });
+
+            atividadesList.addEventListener('input', (e) => {
+                 const activityDiv = e.target.closest('.bg-slate-50');
+                 if (!activityDiv) return;
+                 const activityId = activityDiv.id;
+                 const activityState = state.atividades.find(a => a.id === activityId);
+                 // Check if the target has a 'name' attribute and is an input or textarea
+                 if (e.target.name && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) {
+                    if (activityState && activityState.details.hasOwnProperty(e.target.name)) {
+                        activityState.details[e.target.name] = e.target.value;
+                        updateDashboard();
+                    }
+                 }
+            });
+
+            atividadesList.addEventListener('click', e => {
+                if (e.target.closest('.removeActivityBtn')) {
+                    const activityDiv = e.target.closest('.bg-slate-50');
+                    const activityId = activityDiv.id;
+                    state.atividades = state.atividades.filter(a => a.id !== activityId);
+                    activityDiv.remove();
+                    updateDashboard();
+                }
+            });
+
+
+            document.getElementById('dataRelatorio').addEventListener('change', (e) => {
+                state.data = e.target.value;
+                updateDashboard();
+            });
+
+            document.getElementById('horaInicial').addEventListener('change', (e) => {
+                state.horaInicial = e.target.value;
+                updateDashboard();
+            });
+            
+            document.getElementById('horaFinal').addEventListener('change', (e) => {
+                state.horaFinal = e.target.value;
+                updateDashboard();
+            });
+
+            document.querySelectorAll('input[name="tipoServico"]').forEach(checkbox => {
+                checkbox.addEventListener('change', () => {
+                    state.servicos = Array.from(document.querySelectorAll('input[name="tipoServico"]:checked')).map(cb => cb.value);
+                    updateDashboard();
+                });
+            });
+
+            document.querySelectorAll('input[name="turno"]').forEach(checkbox => {
+                checkbox.addEventListener('change', () => {
+                    state.turnos = Array.from(document.querySelectorAll('input[name="turno"]:checked')).map(cb => cb.value);
+                    updateDashboard();
+                });
+            });
+            
+            document.getElementById('agentesContainer').addEventListener('change', (e) => {
+                if (e.target.name === 'agente') {
+                    state.agentes = Array.from(document.querySelectorAll('input[name="agente"]:checked')).map(cb => cb.value);
+                    updateDashboard();
+                }
+            });
+
+            document.getElementById('equipamentos').addEventListener('input', (e) => {
+                state.equipamentos = e.target.value;
+                updateDashboard();
+            });
+
+            document.getElementById('observacoes').addEventListener('input', (e) => {
+                state.observacoes = e.target.value;
+                updateDashboard();
+            });
+
+            // Gemini API Integration
+            const generateSummaryBtn = document.getElementById('generateSummaryBtn');
+            const llmSummaryOutput = document.getElementById('llmSummaryOutput');
+            const llmSummaryText = document.getElementById('llmSummaryText');
+            const llmLoadingIndicator = document.getElementById('llmLoadingIndicator');
+
+            generateSummaryBtn.addEventListener('click', async () => {
+                llmSummaryOutput.classList.remove('hidden');
+                llmSummaryText.textContent = ''; // Clear previous summary
+                llmLoadingIndicator.classList.remove('hidden'); // Show loading indicator
+
+                // Construct a detailed prompt based on the current state
+                let prompt = `Com base nos seguintes dados do relatório, gere um resumo conciso das atividades, focando nos tipos de atividades, situações, medidas adotadas, e observações gerais. Não inclua informações sobre a equipe ou materiais, a menos que sejam mencionadas nas observações. Faça o resumo em português brasileiro. Se não houver atividades registradas, diga "Nenhuma atividade registrada para resumir."\n\n`;
+                
+                if (state.atividades.length === 0) {
+                    llmSummaryText.textContent = "Nenhuma atividade registrada para resumir.";
+                    llmLoadingIndicator.classList.add('hidden');
+                    return;
+                }
+
+                prompt += `Data do Relatório: ${state.data ? new Date(state.data + 'T00:00:00').toLocaleDateString('pt-BR') : 'Não definida'}\n`;
+                prompt += `Horário do Plantão: ${state.horaInicial || '--:--'} às ${state.horaFinal || '--:--'}\n\n`;
+
+                state.atividades.forEach((activity, index) => {
+                    prompt += `Atividade ${index + 1}:\n`;
+                    prompt += `- Tipo: ${activity.type || 'Não selecionado'}\n`;
+                    if (activity.details.endereco) {
+                        prompt += `- Endereço: ${activity.details.endereco}\n`;
+                    }
+                    prompt += `- Situação: ${activity.details.situacao || 'Não definida'}`;
+                    if (activity.details.situacao === 'OUTROS' && activity.details.justificativaOutros) {
+                        prompt += ` (${activity.details.justificativaOutros})\n`;
+                    } else {
+                        prompt += `\n`;
+                    }
+                    
+                    const medidasAdotadasArray = Array.isArray(activity.details.medidasAdotadas) ? activity.details.medidasAdotadas : [];
+                    if (medidasAdotadasArray.length > 0) {
+                        prompt += `- Medidas Adotadas: ${medidasAdotadasArray.join(', ')}\n`;
+                        if (medidasAdotadasArray.includes('REALIZADO CONTROLE DE FLUXO') && activity.details.inicioControleFluxoMedida && activity.details.fimControleFluxoMedida) {
+                            prompt += `  (Controle de Fluxo: ${activity.details.inicioControleFluxoMedida} - ${activity.details.fimControleFluxoMedida})\n`;
+                        }
+                        if (medidasAdotadasArray.includes('OUTRAS MEDIDAS') && activity.details.justificativaOutrasMedidas) {
+                            prompt += `  (Outras Medidas: ${activity.details.justificativaOutrasMedidas})\n`;
+                        }
+                    } else {
+                        prompt += `- Medidas Adotadas: Nenhuma\n`;
+                    }
+
+                    if (activity.type === 'SEMÁFORO PISCANTE' && activity.details.cruzamentoSemaforoPiscante) {
+                        prompt += `  Detalhes Semáforo Piscante: Cruzamento: ${activity.details.cruzamentoSemaforoPiscante}\n`;
+                    } else if (activity.type === 'SEMAFORO APAGADO' && activity.details.descricaoSemaforoApagado) {
+                        prompt += `  Detalhes Semáforo Apagado: Descrição: ${activity.details.descricaoSemaforoApagado}\n`;
+                    } else if (activity.type === 'COLETA DE DADOS PARA ENGENHARIA (CONTAGENS, ESTUDOS)' && activity.details.descricaoColetaDados) {
+                        prompt += `  Detalhes Coleta de Dados: Descrição: ${activity.details.descricaoColetaDados}\n`;
+                    } else if (activity.type === 'ATENDIMENTO DE OCORRÊNCIAS' && activity.details.descricaoAtendimentoOcorrencias) {
+                        prompt += `  Detalhes Atendimento de Ocorrências: Descrição: ${activity.details.descricaoAtendimentoOcorrencias}\n`;
+                    } else if (activity.type === 'OUTROS TIPOS DE ATIVIDADE' && activity.details.justificativaOutrosAtividade) {
+                        prompt += `  Detalhes Outros Tipos de Atividade: Justificativa: ${activity.details.justificativaOutrosAtividade}\n`;
+                    } else if (activity.type === 'OUTRA ATIVIDADE / COMPLEMENTAR' && activity.details.complementoAtividade) {
+                        prompt += `  Detalhes Outra Atividade: Complemento: ${activity.details.complementoAtividade}\n`;
+                    } else if (activity.type === 'SEM ALTERAÇÕES NO PLANTÃO') {
+                        prompt += `  Detalhes: Nenhuma alteração no plantão.\n`;
+                    }
+                    prompt += `\n`;
+                });
+
+                if (state.observacoes) {
+                    prompt += `Observações Gerais do Relatório: ${state.observacoes}\n`;
+                }
+
+                try {
+                    const apiKey = ""; 
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                    
+                    const payload = {
+                        contents: [{ role: "user", parts: [{ text: prompt }] }],
+                    };
+
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const result = await response.json();
+                    
+                    if (result.candidates && result.candidates.length > 0 && result.candidates[0].content && result.candidates[0].content.parts && result.candidates[0].content.parts.length > 0) {
+                        llmSummaryText.textContent = result.candidates[0].content.parts[0].text;
+                    } else {
+                        llmSummaryText.textContent = "Não foi possível gerar um resumo. Resposta da API inesperada.";
+                        console.error("API response was not as expected:", result);
+                    }
+                } catch (error) {
+                    llmSummaryText.textContent = "Ocorreu um erro ao gerar o resumo. Tente novamente.";
+                    console.error("Error calling Gemini API:", error);
+                } finally {
+                    llmLoadingIndicator.classList.add('hidden'); // Hide loading indicator
+                }
+            });
+
+
+            initChart();
+            updateDashboard();
+            // Add one activity block by default
+            addActivityBlock(); 
+        });
+    </script>
+
+</body>
+</html>
